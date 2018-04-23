@@ -1,4 +1,4 @@
-'''
+"""
 Author: Luis Gomez
 This program finds the energy of a song based on loudness and segment durations <- description borrowed from The Echo Nest
 Metric inspired by The Echo Nest http://runningwithdata.com/post/1321504427/danceability-and-energy
@@ -14,7 +14,7 @@ Gloomy Sunday (Take 1) - Billie Holiday
     Spotify: https://open.spotify.com/track/41CHb7F7SXcmkj0h8wekeF
     Features:
 @whoislewys
-'''
+"""
 
 import librosa
 import numpy as np
@@ -28,11 +28,12 @@ import time
 # SONG_NAME = 'All-Star'
 SONG_NAME = 'Gloomy-Sunday'
 SONG_PATH = os.path.join(os.getcwd(), 'test_songs', '{}.mp3'.format(SONG_NAME))
-OUTPUT_SONG_PATH = os.path.join(os.getcwd(), 'test_songs', '{}-norm.mp3'.format(SONG_NAME))
+OUTPUT_SONG_PATH = os.path.join(os.getcwd(), 'test_songs', '{}-13LUFS-norm.mp3'.format(SONG_NAME))
 try:
     os.remove(OUTPUT_SONG_PATH)
 except OSError:
     pass
+
 
 def json_from_stderr(stderr):
     json_result = '{' + stderr[1][:-2]
@@ -51,54 +52,32 @@ def normalize(input_song_path, output_song_path, dual_pass=False):
     LRA: loudness range. Difference between loud and soft parts of audio. Measured in LU. Between 6-12 is average, with 3 being heavily compressed, looped dance music, and 12 being dynamic indie rock.  (-95%FS to -10%FS Momentary, snapshot over sliding 3s window. Highest-Lowest)
     DR: dynamic range. DIFFERENT from LRA. Dynamic range is diff between highest peak and lowest trough
     '''
-
+    output_file_name = input_song_path.split('.mp3')[0] + '-13LUFSnorm.mp3'
     # Get stream information using ffprobe, then normalize with appropriate samplerate, stereo/mono settings
-    #ffprobe = subprocess.Popen(['ffprobe', '-show_streams', '-of', 'json', input_song_path],
-    #                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    # stdout, stderr = ffprobe.communicate()
-    # print(stdout, stderr)
-    ffprobe_results = subprocess.check_output(['ffprobe', '-show_streams', '-of', 'json',
-                                               '-loglevel', '0', input_song_path])
-    ffprobe_results = ffprobe_results.decode('utf-8')
-    json_stream_info = json.loads(ffprobe_results)
-    sr = json_stream_info['streams'][0]['sample_rate']
-    channel_layout = json_stream_info['streams'][0]['channel_layout']
-    # if a mono audio stream gets normalized, its E BUR128 loudness will be incorrect. dual_mono will compensate
-    dual_mono = True if channel_layout == 'mono' else False
-
-    if dual_pass == True:
-        # FIRST PASS: Dual pass normalization: Do a dry run to get loudness related stats, then do a real run using stats from 1st pass to do more intelligent normalization
-        loudnorm_dry_run = subprocess.Popen(['ffmpeg', '-i', input_song_path, '-af',
-                                             'loudnorm=I=-14:TP=-1.0:LRA=9:print_format=json',
-                                             '-f', 'null', '-'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = loudnorm_dry_run.communicate()
-        stderr = stderr.decode('utf-8').split('{')
-        json_loudnorm_results = json_from_stderr(stderr)
-        print(json_loudnorm_results)
-        measured_I = float(json_loudnorm_results['input_i'])
-        measured_TP = float(json_loudnorm_results['input_tp'])
-        measured_LRA = float(json_loudnorm_results['input_lra'])
-        measured_thresh = float(json_loudnorm_results['input_thresh'])
-        offset = float(json_loudnorm_results['target_offset'])
-    
-        # SECOND PASS, pass stats above into loudnorm
-        loudnorm = subprocess.Popen(['ffmpeg', '-i', input_song_path, '-af', 'loudnorm=I=-14:TP=-1.0:LRA=20:measured_I={0}:measured_LRA={1}:measured_TP={2}:measured_thresh={3}:offset={4}:linear=true:print_format=json:dual_mono={}'.format(measured_I, measured_LRA, measured_TP, measured_thresh, offset, dual_mono),
-                                 '-ar', sr, output_song_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = loudnorm.communicate()
-        stderr = stderr.decode('utf-8').split('{')
-        json_loudnorm_results = json_from_stderr(stderr)
-        loudness = float(json_loudnorm_results['output_i'])
-
-    else:
-        # Single pass normalization: Not as 'intelligent' as dual-pass (whatever THAT means), but twice as fast
-        print('single pass norm')
-        loudnorm = subprocess.Popen(['ffmpeg', '-i', input_song_path, '-af',
-                                     'loudnorm=I=-14:TP=-1.0:LRA=20:print_format=json:dual_mono={}'.format(dual_mono),
-                                     '-ar', sr, output_song_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = loudnorm.communicate()
-        stderr = stderr.decode('utf-8').split('{')
-        json_loudnorm_results = json_from_stderr(stderr)
-        loudness = float(json_loudnorm_results['output_i'])
+    ffprobe_results = subprocess.check_output(['ffprobe', '-show_streams', '-of', 'json', '-loglevel', '0', input_song_path])
+    json_stream_info = json.loads(ffprobe_results.decode('utf-8'))
+    input_sr = json_stream_info['streams'][0]['sample_rate']
+    # Get Integrated Loudness in LUFS by doing a loudnorm dry run
+    loudnorm_dry_run = subprocess.Popen(['ffmpeg', '-i', input_song_path, '-af', 'loudnorm=I=-14:TP=-1.0:LRA=9:print_format=json',
+                                         '-f', 'null', '-'],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = loudnorm_dry_run.communicate()
+    stderr = stderr.decode('utf-8').split('{')
+    json_result = '{' + stderr[1][:-2]
+    loudnorm_results_json = json.loads(json_result)
+    measured_I = float(loudnorm_results_json['input_i'])
+    # Normalize audio to -14 LUFS using RMS volume
+    target_volume = -13
+    gain = target_volume - measured_I
+    # print('applying {}dB of gain'.format(gain))
+    subprocess.call(['ffmpeg', '-i', input_song_path, '-af', 'volume={}dB'.format(gain), '-ar', input_sr, output_song_path])
+    loudnorm_dry_run = subprocess.Popen(['ffmpeg', '-i', input_song_path, '-af', 'loudnorm=I=-14:TP=-1.0:LRA=9:print_format=json',
+                                         '-f', 'null','-'],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = loudnorm_dry_run.communicate()
+    stderr = stderr.decode('utf-8').split('{')
+    json_result = '{' + stderr[1][:-2]
+    loudnorm_results_json = json.loads(json_result)
+    measured_I = float(loudnorm_results_json['input_i'])
+    loudness = measured_I
 
     # print('loudness stats of {}: {}'.format(input_song_path, json_loudnorm_results))
     # Load normalized audio
@@ -130,23 +109,39 @@ def calculate_energy(avg_beat_distance, loudness):
     # combine segment durations and loudness
     # map between 0 and 1
     # Y = (X - A) / (B - A) * (D - C) + C
-    print('avg segment duration: ', avg_beat_distance)
-    print('loudness', loudness)
-
-    # father away from 0 beat_dist and loundess are, the lower the energy
-    # scale so that this is accentuated
-    scaled_loudness = loudness * -1
-    scaled_avg_beat_distance = np.power(avg_beat_distance + 3, 3)
-    energy = scaled_avg_beat_distance * scaled_loudness
+    print('raw loudness', loudness)
+    print('raw beat distance: ', avg_beat_distance)
+    scaled_loudness = np.power(loudness * -1 - 4, 4)
+    scaled_avg_beat_distance = np.power(avg_beat_distance * 2, 8) * 100
+    print('scld loudness: ', scaled_loudness)
+    print('scld beat distance: ', scaled_avg_beat_distance)
+    raw_energy = scaled_avg_beat_distance + scaled_loudness
+    print('raw energy: ', raw_energy)
+    energy = raw_energy/20000
+    print('Energy: ', energy)
     return energy
+
 
 if __name__ == '__main__':
     # Time complexity of various python operations https://wiki.python.org/moin/TimeComplexity
     # Source code for loudnorm (to calculate time complexity: https://github.com/FFmpeg/FFmpeg/blob/7c82e0f61e365296b094684fd92aea0fe05ceb93/libavfilter/af_loudnorm.c
     # Beat_track algo paper: http://www.ee.columbia.edu/~dpwe/pubs/Ellis07-beattrack.pdf
-    print(SONG_PATH)
-    X, loudness = normalize(SONG_PATH, OUTPUT_SONG_PATH)
-    print('{} samples loaded'.format(len(X)))
-    avg_beat_distance = get_avg_beat_distance(X)
-    energy = calculate_energy(avg_beat_distance, loudness)
-    print('Energy: ', energy)
+    # print(SONG_PATH)
+    # X, loudness = normalize(SONG_PATH, OUTPUT_SONG_PATH)
+    # print('{} samples loaded'.format(len(X)))
+    # avg_beat_distance = get_avg_beat_distance(X)
+    # energy = calculate_energy(avg_beat_distance, loudness)
+
+    all_star_beat_dist = 0.5774701764763875
+    all_star_loudness = -9.37
+    gloomy_beat_dist = 0.879262282690854
+    gloomy_loudness = -13.34
+
+    print()
+    print('All Star')
+    all_star_energy = calculate_energy(all_star_beat_dist, all_star_loudness)
+
+    print()
+    print('Gloomy Sunday')
+    gloomy_energy = calculate_energy(gloomy_beat_dist, gloomy_loudness)
+
