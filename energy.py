@@ -157,16 +157,15 @@ def calculate_energy(avg_beat_distance, loudness):
     # Y = (X - A) / (B - A) * (D - C) + C
     print('raw loudness', loudness)
     print('raw beat distance: ', avg_beat_distance)
-    scaled_loudness = loudness * - 0.8
-    # scaled_loudness = np.power(scaled_loudness
-    #scaled_avg_beat_distance = np.power(avg_beat_distance + 3, 5)
-    scaled_avg_beat_distance = np.power(avg_beat_distance, 1/4)
+    scaled_loudness = loudness * -1
+    scaled_avg_beat_distance = np.power(avg_beat_distance,2)
     print('scld loudness: ', scaled_loudness)
     print('scld beat distance: ', scaled_avg_beat_distance)
-    raw_energy = scaled_avg_beat_distance + scaled_loudness
-    print('raw energy: ', raw_energy)
-    energy = 1 / np.power(raw_energy/2, 1.98)
-    energy = energy * 10
+
+    energy = scaled_loudness + avg_beat_distance
+    energy = 1/np.power((1.4*energy), 1.95)
+    energy = energy * 100
+
     print('Energy: ', energy)
     return energy
 
