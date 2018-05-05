@@ -1,3 +1,9 @@
+# Dependencies
+Make sure you have python 3 installed. I recommend using miniconda to install python 3.
+You will need two packages: librosa and numpy
+You can install these by running with
+`pip install numpy librosa`
+
 # How could this be improved?
 Two biggest issues are that comparing the program's loudness and segment calculations to Spotify's, there is too much of a difference.
 To see their segment values for a song go [here](https://beta.developer.spotify.com/console/get-audio-analysis-track/) and search for segments at the bottom.
