@@ -163,8 +163,6 @@ def calculate_energy(avg_beat_distance, loudness):
     energy = scaled_loudness + avg_beat_distance
     energy = 1/np.power((1.4*energy), 1.95)
     energy = energy * 100
-
-    print('Energy: ', energy)
     return energy
 
 
@@ -172,9 +170,10 @@ if __name__ == '__main__':
     print(SONG_PATHS[2])
     print(NORM_SONG_PATHS[2])
     exit()
-    samples = normalize(SONG_PATHS[0], NORM_SONG_PATHS[0])
-
-	
+    normalized_samples, loudness = normalize(SONG_PATHS[0], NORM_SONG_PATHS[0])
+    avg_beat_distance = get_avg_beat_distance(normalized_samples)
+    energy = calculate_energy(avg_beat_distance, loudness)
+    print('Energy: ', energy)
 	
     # for song_name in SONG_NAMES:
     #     print(song_name)
