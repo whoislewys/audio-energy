@@ -167,14 +167,16 @@ def calculate_energy(avg_beat_distance, loudness):
 
 
 if __name__ == '__main__':
-    print(SONG_PATHS[2])
-    print(NORM_SONG_PATHS[2])
-    exit()
-    normalized_samples, loudness = normalize(SONG_PATHS[0], NORM_SONG_PATHS[0])
+    test_song_name = 'Raining-Blood'
+    inpath = os.path.join(os.getcwd(), 'test_songs', '{}.mp3'.format(test_song_name))
+    outpath = os.path.join(os.getcwd(), 'test_songs', '{}-13LUFS-norm.mp3'.format(test_song_name))
+
+    normalized_samples, loudness = normalize(input_song_path=inpath, output_song_path=outpath)
     avg_beat_distance = get_avg_beat_distance(normalized_samples)
     energy = calculate_energy(avg_beat_distance, loudness)
+
     print('Energy: ', energy)
-	
+
     # for song_name in SONG_NAMES:
     #     print(song_name)
     #     input_path = os.path.join(os.getcwd(), 'test_songs', '{}.mp3'.format(song_name))
